@@ -32,6 +32,11 @@ func main() {
 
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, os.Interrupt)
+	go func() {
+		<-signalChan
+		fmt.Println("Shutting down Peril server...")
+		os.Exit(0)
+	}()
 
 	ch, err := conn.Channel()
 	if err != nil {
@@ -63,8 +68,4 @@ REPL:
 			log.Println("invalid command")
 		}
 	}
-
-	<-signalChan
-	fmt.Println("Shutting down Peril server...")
-	os.Exit(0)
 }
