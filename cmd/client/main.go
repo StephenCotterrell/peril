@@ -38,10 +38,16 @@ func main() {
 
 	gameState := gamelogic.NewGameState(userName)
 
-	queueName := fmt.Sprintf("%s.%s", routing.PauseKey, userName)
-
-	if err = pubsub.SubscribeJSON(conn, routing.ExchangePerilDirect, queueName, routing.PauseKey, pubsub.Transient, handlerPause(gameState)); err != nil {
+	// subscribing to the pause command
+	pauseQueueName := fmt.Sprintf("%s.%s", routing.PauseKey, userName)
+	if err = pubsub.SubscribeJSON(conn, routing.ExchangePerilDirect, pauseQueueName, routing.PauseKey, pubsub.Transient, handlerPause(gameState)); err != nil {
 		fmt.Printf("there was an error subscribing to the pause exchange: %v", err)
+	}
+
+	// subscribing to the move command
+	moveQueueName := fmt.Sprintf("%s.%s", routing.ArmyMovesPrefix, userName)
+	if err = pubsub.SubscribeJSON(conn, routing.ExchangePerilTopic, moveQueueName, routing.ArmyMovesPrefix+".*", pubsub.Transient, handlerArmyMoves(gameState)); err != nil {
+		fmt.Printf("there was an error subscribing to the army_moves exchange: %v", err)
 	}
 
 	signalChan := make(chan os.Signal, 1)
@@ -51,6 +57,11 @@ func main() {
 		fmt.Println("Shutting down Peril client server...")
 		os.Exit(0)
 	}()
+
+	ch, err := conn.Channel()
+	if err != nil {
+		log.Fatal("failed to create channel")
+	}
 
 	for {
 		input := gamelogic.GetInput()
@@ -64,7 +75,11 @@ func main() {
 			if move, err := gameState.CommandMove(input); err != nil {
 				fmt.Printf("error executing move command: %v\n", err)
 			} else {
-				fmt.Printf("move was successfull: %v\n", move)
+				if err = pubsub.PublishJSON(ch, routing.ExchangePerilTopic, moveQueueName, move); err != nil {
+					fmt.Printf("error publishing move: %v\n", err)
+				} else {
+					fmt.Printf("move was successfull: %v\n", move)
+				}
 			}
 
 		case "status":
@@ -86,9 +101,25 @@ func main() {
 	}
 }
 
-func handlerPause(gs *gamelogic.GameState) func(routing.PlayingState) {
-	return func(ps routing.PlayingState) {
+func handlerPause(gs *gamelogic.GameState) func(routing.PlayingState) pubsub.Acktype {
+	return func(ps routing.PlayingState) pubsub.Acktype {
 		defer fmt.Printf("> ")
 		gs.HandlePause(ps)
+		return pubsub.Ack
+	}
+}
+
+func handlerArmyMoves(gs *gamelogic.GameState) func(gamelogic.ArmyMove) pubsub.Acktype {
+	return func(move gamelogic.ArmyMove) pubsub.Acktype {
+		defer fmt.Printf("> ")
+		outcome := gs.HandleMove(move)
+		switch outcome {
+		case gamelogic.MoveOutComeSafe, gamelogic.MoveOutcomeMakeWar:
+			return pubsub.Ack
+		case gamelogic.MoveOutcomeSamePlayer:
+			return pubsub.NackDiscard
+		default:
+			return pubsub.NackDiscard
+		}
 	}
 }

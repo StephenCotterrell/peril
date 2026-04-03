@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -31,6 +32,14 @@ type SimpleQueueType string
 const (
 	Durable   SimpleQueueType = "durable"
 	Transient SimpleQueueType = "transient"
+)
+
+type Acktype string
+
+const (
+	Ack         Acktype = "Ack"
+	NackRequeue Acktype = "NackRequeue"
+	NackDiscard Acktype = "NackDiscard"
 )
 
 func DeclareAndBind(conn *amqp.Connection, exchange, queueName, key string, queueType SimpleQueueType) (*amqp.Channel, amqp.Queue, error) {
@@ -66,7 +75,7 @@ func DeclareAndBind(conn *amqp.Connection, exchange, queueName, key string, queu
 	return ch, queue, nil
 }
 
-func SubscribeJSON[T any](conn *amqp.Connection, exchange, queueName, key string, queueType SimpleQueueType, handler func(T)) error {
+func SubscribeJSON[T any](conn *amqp.Connection, exchange, queueName, key string, queueType SimpleQueueType, handler func(T) Acktype) error {
 	ch, _, err := DeclareAndBind(conn, exchange, queueName, key, queueType)
 	if err != nil {
 		return err
@@ -83,8 +92,31 @@ func SubscribeJSON[T any](conn *amqp.Connection, exchange, queueName, key string
 			if err := json.Unmarshal(msg.Body, &payload); err != nil {
 				fmt.Printf("failed to unmarshal message: %v\n", err)
 			}
-			handler(payload)
-			msg.Ack(false)
+			ack := handler(payload)
+			switch ack {
+			case Ack:
+				if err := msg.Ack(false); err != nil {
+					fmt.Printf("There was an error acknowledging the message: %v\n", err)
+				} else {
+					log.Println("Ack message sent")
+				}
+			case NackRequeue:
+				if err := msg.Nack(false, true); err != nil {
+					fmt.Printf("There was an error acknowledging the message: %v\n", err)
+				} else {
+					log.Println("NackRequeue message sent")
+				}
+			case NackDiscard:
+				if err := msg.Nack(false, false); err != nil {
+					fmt.Printf("There was an error acknowledging the message: %v\n", err)
+				} else {
+					log.Println("NackDiscard message sent")
+				}
+			}
+
+			// if err := msg.Ack(false); err != nil {
+			// 	fmt.Printf("There was an error acknowledging the message: %v\n", err)
+			// }
 		}
 	}()
 
