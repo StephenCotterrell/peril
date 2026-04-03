@@ -43,6 +43,13 @@ func main() {
 		log.Fatal("failed to create channel")
 	}
 
+	queueName := fmt.Sprintf("%s.%s", routing.GameLogSlug, "*")
+
+	_, _, err = pubsub.DeclareAndBind(conn, routing.ExchangePerilTopic, routing.GameLogSlug, queueName, pubsub.Durable)
+	if err != nil {
+		log.Fatal("there was an error binding the connection to the queue")
+	}
+
 REPL:
 	for {
 		input := gamelogic.GetInput()
