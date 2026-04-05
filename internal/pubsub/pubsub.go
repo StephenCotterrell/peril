@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/StephenCotterrell/peril/internal/routing"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
@@ -62,7 +63,9 @@ func DeclareAndBind(conn *amqp.Connection, exchange, queueName, key string, queu
 
 	noWait = false
 
-	queue, err := ch.QueueDeclare(queueName, durable, autoDelete, exclusive, noWait, amqp.Table{})
+	queue, err := ch.QueueDeclare(queueName, durable, autoDelete, exclusive, noWait, amqp.Table{
+		"x-dead-letter-exchange": routing.ExchangePerilDeadLetter,
+	})
 	if err != nil {
 		return nil, amqp.Queue{}, err
 	}
