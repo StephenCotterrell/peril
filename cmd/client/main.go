@@ -59,7 +59,7 @@ func main() {
 
 	// subscribing to all moves
 
-	if err = pubsub.SubscribeJSON(conn, routing.ExchangePerilTopic, routing.WarRecognitionsPrefix, routing.WarRecognitionsPrefix+".*", pubsub.Durable, handlerAllMoves(gameState)); err != nil {
+	if err = pubsub.SubscribeJSON(conn, routing.ExchangePerilTopic, routing.WarRecognitionsPrefix, routing.WarRecognitionsPrefix+".*", pubsub.Durable, handlerWar(gameState, ch)); err != nil {
 		fmt.Printf("there was an error subscribing to the all moves exchange: %v", err)
 	}
 
@@ -147,7 +147,7 @@ func handlerArmyMoves(gs *gamelogic.GameState, ch *amqp.Channel) func(gamelogic.
 	}
 }
 
-func handlerAllMoves(gs *gamelogic.GameState) func(gamelogic.RecognitionOfWar) pubsub.Acktype {
+func handlerWar(gs *gamelogic.GameState, ch *amqp.Channel) func(gamelogic.RecognitionOfWar) pubsub.Acktype {
 	return func(recog gamelogic.RecognitionOfWar) pubsub.Acktype {
 		defer fmt.Printf("> ")
 		warOutcome, _, _ := gs.HandleWar(recog)
