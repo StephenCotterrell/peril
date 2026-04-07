@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strconv"
 	"time"
 
 	"github.com/StephenCotterrell/peril/internal/gamelogic"
@@ -106,7 +107,28 @@ func main() {
 			return
 
 		case "spam":
-			fmt.Println("Spamming not allowed yet!")
+			if len(input) < 2 {
+				fmt.Println("usage: spam <number>")
+				continue
+			}
+			spamQuantity, err := strconv.Atoi(input[1])
+			if err != nil {
+				fmt.Println("invalid number")
+				continue
+			}
+
+			for range spamQuantity {
+				maliciousLogMessage := gamelogic.GetMaliciousLog()
+				err = pubsub.PublishGob(ch, routing.ExchangePerilTopic, routing.GameLogSlug+"."+userName, routing.GameLog{
+					CurrentTime: time.Now(),
+					Message:     maliciousLogMessage,
+					Username:    userName,
+				})
+				if err != nil {
+					fmt.Printf("Error publishing maliciousLogMessage")
+					continue
+				}
+			}
 
 		default:
 			fmt.Println("command not recognized")

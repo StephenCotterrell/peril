@@ -43,16 +43,20 @@ func main() {
 		log.Fatal("failed to create channel")
 	}
 
-	queueName := fmt.Sprintf("%s.%s", routing.GameLogSlug, "*")
+	key := fmt.Sprintf("%s.%s", routing.GameLogSlug, "*")
 
-	_, _, err = pubsub.DeclareAndBind(conn, routing.ExchangePerilTopic, routing.GameLogSlug, queueName, pubsub.Durable)
+	err = pubsub.SubscribeGob(conn, routing.ExchangePerilTopic, routing.GameLogSlug, key, pubsub.Durable, handlerPublishLog)
 	if err != nil {
-		log.Fatal("there was an error binding the connection to the queue")
+		log.Fatal("there was an error subscribing to the logs")
 	}
 
 REPL:
 	for {
 		input := gamelogic.GetInput()
+		if len(input) == 0 {
+			continue
+		}
+
 		switch input[0] {
 		case "pause":
 			log.Println("Sending a pause message")
@@ -75,4 +79,13 @@ REPL:
 			log.Println("invalid command")
 		}
 	}
+}
+
+func handlerPublishLog(log routing.GameLog) pubsub.Acktype {
+	defer fmt.Printf("> ")
+	err := gamelogic.WriteLog(log)
+	if err != nil {
+		return pubsub.NackRequeue
+	}
+	return pubsub.Ack
 }

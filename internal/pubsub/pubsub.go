@@ -111,6 +111,7 @@ func subscribe[T any](conn *amqp.Connection, exchange, queueName, key string, qu
 		return err
 	}
 
+	ch.Qos(10, 0, true)
 	deliveryChan, err := ch.Consume(queueName, "", false, false, false, false, nil)
 	if err != nil {
 		return err
@@ -121,10 +122,10 @@ func subscribe[T any](conn *amqp.Connection, exchange, queueName, key string, qu
 			payload, err := unmarshaller(msg.Body)
 			if err != nil {
 				fmt.Printf("Failed to unmarshal message: %v\n", err)
-				if nackErr := msg.Nack(false, false); nackErr != nil {
-					fmt.Printf("Failed to nack message: %v\n", nackErr)
-				}
-				continue
+				// if nackErr := msg.Nack(false, false); nackErr != nil {
+				// fmt.Printf("Failed to nack message: %v\n", nackErr)
+				// }
+				// continue
 			}
 
 			ack := handler(payload)
